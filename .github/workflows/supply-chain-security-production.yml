@@ -1,4 +1,7 @@
-name: Supply Chain Security Guard
+name: Supply Chain Security Guard (Production)
+
+# This is a production-ready version with proper permissions and strict enforcement
+# Copy this to your production repository and configure proper permissions
 
 on:
   pull_request:
@@ -6,6 +9,12 @@ on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
+
+# Required permissions for full functionality
+permissions:
+  contents: read
+  security-events: write
+  actions: read
 
 jobs:
   supply-chain-guard:
@@ -17,7 +26,7 @@ jobs:
       - name: Harden Runner
         uses: step-security/harden-runner@c6295a65d1254861815972266d5933fd6e532bdf # v2.11.1
         with:
-          egress-policy: audit
+          egress-policy: block  # STRICT blocking in production
           disable-sudo: true
           allowed-endpoints: >
             github.com:443
@@ -38,19 +47,20 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
-      # Verify Harden-Runner monitoring is active
-      - name: Verify Security Monitoring
+      # Verify egress controls are working (production test)
+      - name: Verify Egress Block (Production)
         run: |
-          echo "🔒 Verifying StepSecurity Harden-Runner monitoring..."
+          echo "🔒 Testing production egress blocking..."
+          set -e
 
-          # Test connection to a non-whitelisted endpoint (this will be monitored)
-          echo "Testing monitored endpoint access (should be logged by Harden-Runner)..."
+          # Test that blocked endpoints fail (should NOT be reachable)
+          echo "Testing blocked endpoint (httpbin.org)..."
           if curl -fsS --max-time 5 http://httpbin.org/get > /dev/null 2>&1; then
-            echo "📊 Connection to httpbin.org succeeded and was monitored"
-            echo "✅ Harden-Runner is actively monitoring network egress"
+            echo "❌ SECURITY RISK: Egress not properly blocked! httpbin.org is reachable."
+            echo "This indicates network security controls are not working."
+            exit 1
           else
-            echo "⚠️  Connection failed - network may be restricted or endpoint unavailable"
-            echo "✅ This could indicate effective network controls are in place"
+            echo "✅ Egress blocking verified: Non-whitelisted endpoints properly blocked"
           fi
 
           # Test that allowed endpoints work
@@ -58,14 +68,11 @@ jobs:
           if curl -fsS --max-time 10 https://github.com > /dev/null; then
             echo "✅ Allowed endpoint accessible: github.com reachable"
           else
-            echo "⚠️  Warning: Allowed endpoint not reachable - may indicate connectivity issues"
+            echo "❌ ERROR: Allowed endpoint not reachable - check network configuration"
+            exit 1
           fi
 
-          # Verify StepSecurity is monitoring
-          echo "📈 All network activity is being monitored by StepSecurity Harden-Runner"
-          echo "📊 Check the StepSecurity dashboard for detailed insights: https://app.stepsecurity.io/"
-
-      # Dependency vulnerability scanning
+      # Dependency vulnerability scanning with strict enforcement
       - name: Run Trivy Vulnerability Scanner
         uses: aquasecurity/trivy-action@7c2007bcb556501da015201bcba5aa14069b74e2 # v0.23.0
         with:
@@ -73,13 +80,11 @@ jobs:
           scan-ref: '.'
           format: 'table'
           severity: 'HIGH,CRITICAL'
-          exit-code: '0'  # Don't fail on vulnerabilities in demo repo
-          # Skip unfixed vulnerabilities to reduce noise
+          exit-code: '1'  # FAIL on vulnerabilities in production
           ignore-unfixed: true
 
-      # Optional: Generate SARIF report for security tab (requires security-events: write permission)
-      - name: Generate Trivy SARIF Report (Optional)
-        if: false  # Disabled for demo - enable in production with proper permissions
+      # Generate SARIF report for security tab
+      - name: Generate Trivy SARIF Report
         uses: aquasecurity/trivy-action@7c2007bcb556501da015201bcba5aa14069b74e2 # v0.23.0
         with:
           scan-type: 'fs'
@@ -87,13 +92,13 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'HIGH,CRITICAL'
-          exit-code: '0'
+          exit-code: '0'  # Don't fail twice, just generate report
           ignore-unfixed: true
 
-      # Optional: Upload results to GitHub Security tab (requires security-events: write permission)
-      - name: Upload Trivy Results to Security Tab (Optional)
-        if: false  # Disabled for demo - enable in production with proper permissions
+      # Upload results to GitHub Security tab
+      - name: Upload Trivy Results to Security Tab
         uses: github/codeql-action/upload-sarif@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3.25.15
+        if: always()
         with:
           sarif_file: 'trivy-results.sarif'
 
@@ -102,21 +107,21 @@ jobs:
         if: hashFiles('package.json') != ''
         run: |
           echo "📦 Node.js repository detected"
-          echo "Testing package installation without lifecycle scripts..."
+          echo "Installing packages without lifecycle scripts..."
 
           # Install dependencies without running potentially malicious scripts
           if [ -f package-lock.json ]; then
             echo "Using npm ci --ignore-scripts..."
-            npm ci --ignore-scripts --dry-run
+            npm ci --ignore-scripts
           elif [ -f yarn.lock ]; then
             echo "Using yarn install --ignore-scripts..."
-            yarn install --ignore-scripts --dry-run
+            yarn install --ignore-scripts
           else
             echo "Using npm install --ignore-scripts..."
-            npm install --ignore-scripts --dry-run
+            npm install --ignore-scripts
           fi
 
-          echo "✅ Package installation simulation successful without scripts"
+          echo "✅ Package installation completed safely without scripts"
 
       # Python package hygiene (if applicable)
       - name: Python Package Security Check
@@ -136,7 +141,7 @@ jobs:
 
           echo "✅ Python package check completed"
 
-  # Job for self-hosted runner specific checks (if applicable)
+  # Job for self-hosted runner specific checks (production)
   runner-security-check:
     name: Runner Security Verification
     runs-on: ubuntu-latest
@@ -146,17 +151,24 @@ jobs:
       - name: Harden Runner
         uses: step-security/harden-runner@c6295a65d1254861815972266d5933fd6e532bdf # v2.11.1
         with:
-          egress-policy: audit
+          egress-policy: block  # Block mode for production
           disable-sudo: true
 
-      - name: Runner Environment Check
+      - name: Production Runner Environment Check
         run: |
-          echo "🔍 Analyzing runner environment..."
+          echo "🔍 Analyzing production runner environment..."
           echo "Runner OS: $(uname -a)"
           echo "Runner User: $(whoami)"
           echo "Runner Groups: $(groups)"
           echo "Docker Access: $(docker --version 2>/dev/null || echo 'Not available')"
-          echo "Sudo Access: $(sudo -n true 2>/dev/null && echo 'Available' || echo 'Restricted')"
+          echo "Sudo Access: $(sudo -n true 2>/dev/null && echo 'Available - SECURITY RISK!' || echo 'Restricted - Good')"
+
+          # Security validation
+          if sudo -n true 2>/dev/null; then
+            echo "❌ SECURITY RISK: Runner has sudo access without password!"
+            echo "This violates security best practices for CI/CD runners."
+            exit 1
+          fi
 
           # Check for security indicators
           echo "🔒 Security indicators:"
@@ -165,4 +177,4 @@ jobs:
           echo "- Working directory: $(pwd)"
 
           # Verify StepSecurity monitoring is active
-          echo "✅ StepSecurity Harden-Runner monitoring active"
+          echo "✅ StepSecurity Harden-Runner production monitoring active"

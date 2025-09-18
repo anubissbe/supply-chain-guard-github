@@ -153,6 +153,12 @@ EOF
           echo "Generated security reports:"
           ls -la security-reports/
 
+          # Debug: Check if SARIF file exists and show its path
+          echo "🔍 Checking SARIF file location:"
+          find . -name "*.sarif" -type f | head -5
+          echo "Working directory: $(pwd)"
+          echo "SARIF file check: $(ls -la security-reports/trivy-results.sarif 2>/dev/null || echo 'File not found')"
+
       # Upload security reports as artifacts (no special permissions needed)
       - name: Upload Security Reports
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
@@ -164,7 +170,7 @@ EOF
 
       # Optional: Upload SARIF to GitHub Security tab (requires security-events: write permission)
       - name: Upload SARIF to Security Tab (Optional)
-        if: always() && hashFiles('security-reports/trivy-results.sarif') != ''
+        if: false  # Disabled for demo - enable in production with proper permissions
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3.25.15
         with:

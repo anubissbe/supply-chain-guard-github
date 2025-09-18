@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **Supply-Chain Guard Kit for GitHub Enterprise** designed to prevent S1ngularity-style exfiltration attacks in CI/CD pipelines across GitHub organizations. The kit leverages StepSecurity Harden-Runner for runtime security monitoring and GitHub Repository Rulesets for organization-wide enforcement.
+This is a **Supply-Chain Guard Kit for GitHub Enterprise** designed to prevent advanced supply chain attacks and data exfiltration in CI/CD pipelines across GitHub organizations. The kit leverages StepSecurity Harden-Runner for runtime security monitoring and GitHub Repository Rulesets for organization-wide enforcement.
 
 **Key Security Strategy:**
 - StepSecurity Harden-Runner for runtime monitoring and egress control

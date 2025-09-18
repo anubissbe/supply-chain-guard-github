@@ -9,7 +9,7 @@
 
 **Enterprise-grade supply chain security for GitHub organizations**
 
-*Prevent S1ngularity-style exfiltration attacks with runtime monitoring and organizational enforcement*
+*Runtime security monitoring and policy enforcement for GitHub Actions workflows*
 
 </div>
 

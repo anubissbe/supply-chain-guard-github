@@ -60,7 +60,7 @@ graph TD
     S3 --> T5
 ```
 
-### S1ngularity-Class Attack Pattern
+### Advanced Supply Chain Attack Pattern
 
 #### Attack Lifecycle
 ```yaml

@@ -83,24 +83,27 @@ jobs:
           exit-code: '1'  # FAIL on vulnerabilities in production
           ignore-unfixed: true
 
-      # Generate SARIF report for security tab
-      - name: Generate Trivy SARIF Report
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'HIGH,CRITICAL'
-          exit-code: '0'  # Don't fail twice, just generate report
-          ignore-unfixed: true
-
-      # Upload results to GitHub Security tab
-      - name: Upload Trivy Results to Security Tab
-        uses: github/codeql-action/upload-sarif@192325c86100d080feab897ff886c34abd4c83a3 # v3.30.3
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
+      # SARIF upload disabled - requires security-events: write permission
+      # To enable SARIF upload to Security tab:
+      # 1. Add security-events: write permission to the workflow
+      # 2. Uncomment the steps below
+      #
+      # - name: Generate Trivy SARIF Report
+      #   uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
+      #   with:
+      #     scan-type: 'fs'
+      #     scan-ref: '.'
+      #     format: 'sarif'
+      #     output: 'trivy-results.sarif'
+      #     severity: 'HIGH,CRITICAL'
+      #     exit-code: '0'
+      #     ignore-unfixed: true
+      #
+      # - name: Upload Trivy Results to Security Tab
+      #   uses: github/codeql-action/upload-sarif@192325c86100d080feab897ff886c34abd4c83a3 # v3.30.3
+      #   if: always()
+      #   with:
+      #     sarif_file: 'trivy-results.sarif'
 
       # Node.js package hygiene (if applicable)
       - name: Node Package Security Check

@@ -90,33 +90,8 @@ jobs:
           trivy fs --format json --output security-reports/vulnerability-report.json \
             --severity HIGH,CRITICAL --ignore-unfixed . || true
 
-          # Generate SARIF report for external tools
-          echo "Generating SARIF report for security tools..."
-          trivy fs --format sarif --output security-reports/trivy-results.sarif \
-            --severity HIGH,CRITICAL --ignore-unfixed . || echo "⚠️ SARIF generation failed, creating empty file"
-
-          # Ensure SARIF file exists for upload step
-          if [ ! -f security-reports/trivy-results.sarif ]; then
-            echo "Creating empty SARIF file..."
-            cat > security-reports/trivy-results.sarif << 'EOF'
-{
-  "version": "2.1.0",
-  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
-  "runs": [
-    {
-      "tool": {
-        "driver": {
-          "name": "Trivy",
-          "informationUri": "https://github.com/aquasecurity/trivy",
-          "rules": []
-        }
-      },
-      "results": []
-    }
-  ]
-}
-EOF
-          fi
+          # SARIF generation disabled - not needed for demo repository
+          echo "ℹ️ SARIF report generation skipped (requires security-events permission)"
 
           # Generate human-readable HTML report
           echo "Generating HTML security report..."
@@ -152,12 +127,6 @@ EOF
           # List generated files
           echo "Generated security reports:"
           ls -la security-reports/
-
-          # Debug: Check if SARIF file exists and show its path
-          echo "🔍 Checking SARIF file location:"
-          find . -name "*.sarif" -type f | head -5
-          echo "Working directory: $(pwd)"
-          echo "SARIF file check: $(ls -la security-reports/trivy-results.sarif 2>/dev/null || echo 'File not found')"
 
       # Upload security reports as artifacts (no special permissions needed)
       - name: Upload Security Reports
@@ -243,7 +212,7 @@ EOF
           - **Tool**: Trivy Scanner
           - **Scope**: File system scan
           - **Severity**: HIGH and CRITICAL vulnerabilities
-          - **Action**: Table output + JSON/SARIF reports generated
+          - **Action**: Table output + JSON/HTML reports generated
 
           ### ✅ Package Hygiene
           - **Node.js**: Install packages without lifecycle scripts
@@ -259,7 +228,6 @@ EOF
           ### Vulnerability Assessment
           Detailed vulnerability reports are available in the following formats:
           - **JSON**: `vulnerability-report.json` (machine-readable)
-          - **SARIF**: `trivy-results.sarif` (security tools integration)
           - **HTML**: `security-report.html` (human-readable)
           - **Summary**: `security-summary.md` (quick overview)
 

@@ -168,13 +168,14 @@ EOF
           path: security-reports/
           retention-days: 30
 
-      # Optional: Upload SARIF to GitHub Security tab (requires security-events: write permission)
-      - name: Upload SARIF to Security Tab (Optional)
-        if: false  # Disabled for demo - enable in production with proper permissions
-        continue-on-error: true
-        uses: github/codeql-action/upload-sarif@192325c86100d080feab897ff886c34abd4c83a3 # v3.30.3
-        with:
-          sarif_file: security-reports/trivy-results.sarif
+      # SARIF upload disabled for demo repository
+      # To enable in production:
+      # 1. Ensure repository has security-events: write permission
+      # 2. Uncomment the step below and configure proper permissions
+      # - name: Upload SARIF to Security Tab
+      #   uses: github/codeql-action/upload-sarif@192325c86100d080feab897ff886c34abd4c83a3
+      #   with:
+      #     sarif_file: security-reports/trivy-results.sarif
 
       # Node.js package hygiene (if applicable)
       - name: Node Package Security Check

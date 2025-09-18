@@ -77,25 +77,72 @@ jobs:
           # Skip unfixed vulnerabilities to reduce noise
           ignore-unfixed: true
 
-      # Optional: Generate SARIF report for security tab (requires security-events: write permission)
-      - name: Generate Trivy SARIF Report (Optional)
-        if: false  # Disabled for demo - enable in production with proper permissions
-        uses: aquasecurity/trivy-action@7c2007bcb556501da015201bcba5aa14069b74e2 # v0.23.0
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'HIGH,CRITICAL'
-          exit-code: '0'
-          ignore-unfixed: true
+      # Generate comprehensive security reports
+      - name: Generate Security Reports
+        run: |
+          echo "📊 Generating comprehensive security reports..."
+          mkdir -p security-reports
 
-      # Optional: Upload results to GitHub Security tab (requires security-events: write permission)
-      - name: Upload Trivy Results to Security Tab (Optional)
-        if: false  # Disabled for demo - enable in production with proper permissions
+          # Generate detailed JSON report
+          echo "Generating detailed JSON vulnerability report..."
+          trivy fs --format json --output security-reports/vulnerability-report.json \
+            --severity HIGH,CRITICAL --ignore-unfixed . || true
+
+          # Generate SARIF report for external tools
+          echo "Generating SARIF report for security tools..."
+          trivy fs --format sarif --output security-reports/trivy-results.sarif \
+            --severity HIGH,CRITICAL --ignore-unfixed . || true
+
+          # Generate human-readable HTML report
+          echo "Generating HTML security report..."
+          trivy fs --format template --template '@contrib/html.tpl' \
+            --output security-reports/security-report.html \
+            --severity HIGH,CRITICAL --ignore-unfixed . || true
+
+          # Generate summary report
+          echo "Generating security summary..."
+          cat > security-reports/security-summary.md << 'EOF'
+          # Security Scan Summary
+
+          **Repository**: ${{ github.repository }}
+          **Scan Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Commit**: ${{ github.sha }}
+          **Branch**: ${{ github.ref_name }}
+
+          ## Scan Results
+
+          ### High/Critical Vulnerabilities
+          ```
+          EOF
+
+          # Add vulnerability summary to markdown
+          trivy fs --format table --severity HIGH,CRITICAL --ignore-unfixed . >> security-reports/security-summary.md || true
+
+          echo '```' >> security-reports/security-summary.md
+          echo '' >> security-reports/security-summary.md
+          echo '## StepSecurity Monitoring' >> security-reports/security-summary.md
+          echo 'All network activity monitored by Harden-Runner' >> security-reports/security-summary.md
+          echo 'Dashboard: https://app.stepsecurity.io/' >> security-reports/security-summary.md
+
+          # List generated files
+          echo "Generated security reports:"
+          ls -la security-reports/
+
+      # Upload security reports as artifacts (no special permissions needed)
+      - name: Upload Security Reports
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        if: always()
+        with:
+          name: security-reports-${{ github.run_number }}
+          path: security-reports/
+          retention-days: 30
+
+      # Optional: Upload SARIF to GitHub Security tab (requires security-events: write permission)
+      - name: Upload SARIF to Security Tab (Optional)
+        if: false  # Enable in production with proper permissions: github.event_name != 'pull_request'
         uses: github/codeql-action/upload-sarif@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3.25.15
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: security-reports/trivy-results.sarif
 
       # Node.js package hygiene (if applicable)
       - name: Node Package Security Check
@@ -135,6 +182,74 @@ jobs:
           fi
 
           echo "✅ Python package check completed"
+
+      # Generate final security report with all findings
+      - name: Generate Final Security Report
+        if: always()
+        run: |
+          echo "📋 Generating final comprehensive security report..."
+
+          cat > security-reports/final-security-report.md << 'EOF'
+          # 🛡️ Supply Chain Security Report
+
+          ## 📊 Scan Summary
+          - **Repository**: ${{ github.repository }}
+          - **Scan Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          - **Commit**: ${{ github.sha }}
+          - **Workflow Run**: ${{ github.run_number }}
+
+          ## 🔒 Security Controls Active
+
+          ### ✅ StepSecurity Harden-Runner
+          - **Status**: Active and monitoring
+          - **Policy**: Audit mode (demo) / Block mode (production)
+          - **Dashboard**: https://app.stepsecurity.io/
+          - **Monitoring**: Network egress, file integrity, process activity
+
+          ### ✅ Vulnerability Scanning
+          - **Tool**: Trivy Scanner
+          - **Scope**: File system scan
+          - **Severity**: HIGH and CRITICAL vulnerabilities
+          - **Action**: Table output + JSON/SARIF reports generated
+
+          ### ✅ Package Hygiene
+          - **Node.js**: Install packages without lifecycle scripts
+          - **Python**: Scan for typosquatting patterns
+          - **Status**: Automated checks completed
+
+          ## 📈 Security Insights
+
+          ### Network Monitoring
+          All network connections during this workflow run have been monitored by StepSecurity Harden-Runner.
+          Check the [StepSecurity Dashboard](https://app.stepsecurity.io/) for detailed network activity analysis.
+
+          ### Vulnerability Assessment
+          Detailed vulnerability reports are available in the following formats:
+          - **JSON**: `vulnerability-report.json` (machine-readable)
+          - **SARIF**: `trivy-results.sarif` (security tools integration)
+          - **HTML**: `security-report.html` (human-readable)
+          - **Summary**: `security-summary.md` (quick overview)
+
+          ## 🎯 Next Steps
+
+          1. **Review Reports**: Download and review all generated security reports
+          2. **StepSecurity Dashboard**: Visit dashboard for network monitoring insights
+          3. **Address Findings**: Remediate any identified vulnerabilities
+          4. **Production Setup**: Use production workflow for strict enforcement
+
+          ## 🔧 Production Deployment
+
+          For production use:
+          1. Copy `supply-chain-security-production.yml` workflow
+          2. Configure `security-events: write` permission
+          3. Enable strict `egress-policy: block` mode
+          4. Set up Repository Rulesets to require this workflow
+
+          ---
+          *Generated by Supply Chain Guard Kit for GitHub Enterprise*
+          EOF
+
+          echo "📁 Final security report generated: security-reports/final-security-report.md"
 
   # Job for self-hosted runner specific checks (if applicable)
   runner-security-check:

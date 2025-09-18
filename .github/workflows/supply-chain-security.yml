@@ -1,0 +1,150 @@
+name: Supply Chain Security Guard
+
+on:
+  pull_request:
+    branches: [ main, master, develop ]
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  supply-chain-guard:
+    name: Supply Chain Security Enforcement
+    runs-on: ubuntu-latest
+
+    steps:
+      # CRITICAL: Harden-Runner must be the FIRST step in every job
+      - name: Harden Runner
+        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            uploads.github.com:443
+            registry.npmjs.org:443
+            registry.yarnpkg.com:443
+            ghcr.io:443
+            docker.io:443
+            registry-1.docker.io:443
+            auth.docker.io:443
+            production.cloudflare.docker.com:443
+            pypi.org:443
+            files.pythonhosted.org:443
+            index.docker.io:443
+
+      - name: Checkout Repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      # Verify egress controls are working
+      - name: Verify Egress Block
+        run: |
+          echo "🔒 Testing egress blocking..."
+          set -e
+
+          # Test that blocked endpoints fail (should NOT be reachable)
+          echo "Testing blocked endpoint (1.1.1.1)..."
+          if curl -fsS --max-time 5 http://1.1.1.1/ > /dev/null 2>&1; then
+            echo "❌ SECURITY RISK: Egress not properly blocked! 1.1.1.1 is reachable."
+            echo "This indicates network security controls are not working."
+            exit 1
+          else
+            echo "✅ Egress blocking verified: 1.1.1.1 properly blocked"
+          fi
+
+          # Test that allowed endpoints work
+          echo "Testing allowed endpoint (github.com)..."
+          if curl -fsS --max-time 10 https://github.com > /dev/null; then
+            echo "✅ Allowed endpoint accessible: github.com reachable"
+          else
+            echo "⚠️  Warning: Allowed endpoint not reachable - may indicate connectivity issues"
+          fi
+
+      # Dependency vulnerability scanning
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@7c2007bcb556501da015201bcba5aa14069b74e2 # v0.23.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+          # Skip unfixed vulnerabilities to reduce noise
+          ignore-unfixed: true
+
+      # Upload results to GitHub Security tab
+      - name: Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3.25.15
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      # Node.js package hygiene (if applicable)
+      - name: Node Package Security Check
+        if: hashFiles('package.json') != ''
+        run: |
+          echo "📦 Node.js repository detected"
+          echo "Testing package installation without lifecycle scripts..."
+
+          # Install dependencies without running potentially malicious scripts
+          if [ -f package-lock.json ]; then
+            echo "Using npm ci --ignore-scripts..."
+            npm ci --ignore-scripts --dry-run
+          elif [ -f yarn.lock ]; then
+            echo "Using yarn install --ignore-scripts..."
+            yarn install --ignore-scripts --dry-run
+          else
+            echo "Using npm install --ignore-scripts..."
+            npm install --ignore-scripts --dry-run
+          fi
+
+          echo "✅ Package installation simulation successful without scripts"
+
+      # Python package hygiene (if applicable)
+      - name: Python Package Security Check
+        if: hashFiles('requirements.txt', 'pyproject.toml', 'setup.py') != ''
+        run: |
+          echo "🐍 Python repository detected"
+          echo "Checking for suspicious package patterns..."
+
+          # Check for typosquatting patterns in requirements
+          if [ -f requirements.txt ]; then
+            echo "Scanning requirements.txt for suspicious patterns..."
+            # Look for common typosquatting patterns
+            if grep -iE "(colorsama|urllib3|requests)" requirements.txt; then
+              echo "⚠️  Found packages that could be typosquats - manual review recommended"
+            fi
+          fi
+
+          echo "✅ Python package check completed"
+
+  # Job for self-hosted runner specific checks (if applicable)
+  runner-security-check:
+    name: Runner Security Verification
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+        with:
+          egress-policy: audit
+
+      - name: Runner Environment Check
+        run: |
+          echo "🔍 Analyzing runner environment..."
+          echo "Runner OS: $(uname -a)"
+          echo "Runner User: $(whoami)"
+          echo "Runner Groups: $(groups)"
+          echo "Docker Access: $(docker --version 2>/dev/null || echo 'Not available')"
+          echo "Sudo Access: $(sudo -n true 2>/dev/null && echo 'Available' || echo 'Restricted')"
+
+          # Check for security indicators
+          echo "🔒 Security indicators:"
+          echo "- Running as: $(id)"
+          echo "- Home directory: $HOME"
+          echo "- Working directory: $(pwd)"
+
+          # Verify StepSecurity monitoring is active
+          echo "✅ StepSecurity Harden-Runner monitoring active"

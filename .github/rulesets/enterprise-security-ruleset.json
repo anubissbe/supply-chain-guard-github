@@ -1,0 +1,74 @@
+{
+  "name": "Enterprise Supply Chain Guard",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["~DEFAULT_BRANCH"],
+      "exclude": []
+    },
+    "repository_name": {
+      "include": ["~ALL"],
+      "exclude": ["test-*", "demo-*", "playground-*"]
+    },
+    "repository_property": {
+      "name": "environment",
+      "property_values": ["production", "staging"]
+    }
+  },
+  "rules": [
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 2,
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": true,
+        "require_last_push_approval": true,
+        "required_review_thread_resolution": true
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "required_status_checks": [
+          {
+            "context": "Supply Chain Security Enforcement",
+            "integration_id": null
+          },
+          {
+            "context": "Security / Harden Runner",
+            "integration_id": null
+          },
+          {
+            "context": "Security / Trivy Vulnerability Scanner",
+            "integration_id": null
+          },
+          {
+            "context": "Security / SAST Analysis",
+            "integration_id": null
+          }
+        ],
+        "strict_required_status_checks_policy": true
+      }
+    },
+    {
+      "type": "non_fast_forward",
+      "parameters": {}
+    },
+    {
+      "type": "deletion",
+      "parameters": {}
+    },
+    {
+      "type": "required_linear_history",
+      "parameters": {}
+    },
+    {
+      "type": "required_deployments",
+      "parameters": {
+        "required_deployment_environments": ["security-review"]
+      }
+    }
+  ],
+  "bypass_actors": []
+}

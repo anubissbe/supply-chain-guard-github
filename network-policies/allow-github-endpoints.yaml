@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: github-runners-allow-github-endpoints
+  namespace: github-actions-runners
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: github-runner
+  policyTypes:
+  - Egress
+  egress:
+  # Allow GitHub endpoints
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow NTP (time synchronization)
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 123

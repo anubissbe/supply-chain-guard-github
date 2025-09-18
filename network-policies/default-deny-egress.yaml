@@ -1,0 +1,12 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: github-runners-default-deny-egress
+  namespace: github-actions-runners
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: github-runner
+  policyTypes:
+  - Egress
+  egress: []  # Deny all egress by default

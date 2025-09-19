@@ -1,8 +1,8 @@
 # GitHub Enterprise: NPM Supply Chain Attack Protection
 
-## 🚨 Enterprise-Wide Emergency Deployment for GitHub
+## Enterprise-Wide Deployment Guide
 
-This guide provides step-by-step instructions to protect **ALL GitHub Enterprise organizations and repositories** at once from the active npm supply chain attack.
+This guide provides instructions for deploying npm supply chain attack protection across GitHub Enterprise organizations.
 
 ## Prerequisites
 
@@ -53,14 +53,14 @@ jobs:
             HASH=$(sha256sum "$file" | cut -d' ' -f1)
             for KNOWN in "${HASHES[@]}"; do
               if [ "$HASH" = "$KNOWN" ]; then
-                echo "❌ INFECTED: $file"
+                echo "ERROR: Malicious file detected: $file"
                 FOUND=true
               fi
             done
           done
 
           if [ "$FOUND" = true ]; then
-            echo "⚠️ MALICIOUS FILES DETECTED!"
+            echo "Security check failed: malicious files detected"
             exit 1
           fi
 ```
@@ -151,8 +151,8 @@ This script deploys the security workflow to ALL repositories:
 
 set -e
 
-echo "🚨 GitHub Enterprise NPM Attack Protection"
-echo "=========================================="
+echo "GitHub Enterprise NPM Attack Protection"
+echo "========================================"
 
 # Configuration
 ENTERPRISE="${1:-YOUR-ENTERPRISE}"
@@ -190,7 +190,7 @@ jobs:
               HASH=$(sha256sum "$file" | cut -d" " -f1)
               for KNOWN in "${MALICIOUS_HASHES[@]}"; do
                 if [ "$HASH" = "$KNOWN" ]; then
-                  echo "❌ MALICIOUS FILE: $file"
+                  echo "ERROR: Malicious file detected: $file"
                   echo "   SHA256: $HASH"
                   FOUND=true
                 fi
@@ -202,7 +202,7 @@ jobs:
             echo "::error::Malicious npm packages detected!"
             exit 1
           else
-            echo "✅ No known malicious files found"
+            echo "Security check passed: No malicious files found"
           fi
 
       - name: Check bundle.js specifically
@@ -242,7 +242,7 @@ deploy_to_repo() {
           -f message="Update NPM security check" \
           -f content="$(echo "$WORKFLOW_CONTENT" | base64)" \
           -f sha="$(gh api repos/$org/$repo/contents/.github/workflows/npm-hash-check.yml --jq .sha)" \
-          &>/dev/null && echo "✅" || echo "⚠️"
+          &>/dev/null && echo "OK" || echo "FAILED"
     else
         echo "creating..."
         # Create workflow directory if needed
@@ -251,7 +251,7 @@ deploy_to_repo() {
           repos/$org/$repo/contents/.github/workflows/npm-hash-check.yml \
           -f message="Add emergency NPM security check" \
           -f content="$(echo "$WORKFLOW_CONTENT" | base64)" \
-          &>/dev/null && echo "✅" || echo "⚠️"
+          &>/dev/null && echo "OK" || echo "FAILED"
     fi
 }
 
@@ -283,7 +283,7 @@ for ORG in $ORGS; do
 done
 
 echo ""
-echo "✅ Deployment complete!"
+echo "Deployment complete"
 ```
 
 ## Step 4: GitHub Enterprise Server (Self-Hosted)
@@ -314,7 +314,7 @@ while read oldrev newrev refname; do
       hash=$(echo "$content" | sha256sum | cut -d' ' -f1)
 
       if echo "$MALICIOUS_HASHES" | grep -q "$hash"; then
-        echo "❌ BLOCKED: Malicious npm package detected!"
+        echo "ERROR: Push blocked - malicious npm package detected"
         echo "   File: $file"
         echo "   Hash: $hash"
         echo ""
@@ -337,18 +337,22 @@ ghe-config app.github.pre-receive-hook-dir /opt/github/git-hooks
 ghe-config-apply
 ```
 
-## Step 5: Quick Verification
+## Step 5: Verification
 
 ### Test the protection:
 
 ```bash
-# Create a test file with known bad hash
-echo "test" > test.js
+# Verify the workflow is active
+gh workflow list --repo YOUR-ORG/YOUR-REPO
 
-# Get its hash
-sha256sum test.js
+# Check ruleset status
+gh api /orgs/YOUR-ORG/rulesets
 
-# Try to push - it should be blocked if hash matches
+# Run security check manually
+gh workflow run npm-hash-check.yml --repo YOUR-ORG/YOUR-REPO
+
+# View workflow results
+gh run list --workflow=npm-hash-check.yml --repo YOUR-ORG/YOUR-REPO
 ```
 
 ## Step 6: Monitor & Alert
@@ -372,14 +376,25 @@ done
 
 Go to **Enterprise settings** → **Code security and analysis** → Enable all security features
 
-## Emergency Contact Workflow
+## Incident Response Procedure
 
 If malicious files are detected:
 
-1. **Immediate**: Block the repository
-2. **Within 1 hour**: Rotate all secrets
-3. **Within 4 hours**: Full audit of recent commits
-4. **Within 24 hours**: Security report to leadership
+1. **Immediate Actions**:
+   - Block affected repository from deployments
+   - Notify security team via designated channels
+
+2. **Within 1 Hour**:
+   - Rotate potentially exposed secrets and tokens
+   - Identify affected branches and commits
+
+3. **Within 4 Hours**:
+   - Complete audit of recent commits for unauthorized changes
+   - Document infection timeline and scope
+
+4. **Within 24 Hours**:
+   - Prepare incident report with remediation steps
+   - Update security policies as needed
 
 ## Summary Commands
 

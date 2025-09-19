@@ -1,19 +1,19 @@
 # Deploying Repository Rulesets for NPM Security
 
-## Important: How This Blocks Malicious Files
+## How Repository Rulesets Protect Against Malicious Files
 
-**This is a TWO-PART setup:**
+**This protection requires two components:**
 
-1. **The Ruleset** (this document) - Creates a policy requiring security checks
-2. **The Workflow** (`.github/workflows/emergency-npm-hash-check.yml`) - Actually scans for malicious hashes
+1. **Repository Ruleset** - Enforces required status checks at the organization level
+2. **GitHub Actions Workflow** - Performs the actual security scanning and reports status
 
-### What Gets Blocked:
+### Ruleset Enforcement
 
-The ruleset will **BLOCK**:
-- ❌ **Pull Request Merges** - Cannot merge if malicious files detected
-- ❌ **Direct Pushes** - Cannot push to protected branches with malicious files
-- ❌ **Branch Creation** - Cannot create branches with infected files
-- ❌ **Force Pushes** - Cannot bypass with force push
+When set to **"Active"** enforcement, the ruleset restricts the following interactions:
+- **Push restrictions** - Blocks direct pushes to protected branches if required status checks fail
+- **Pull request merges** - Prevents merging when security checks report failure
+- **Branch protection** - Applies rules to specified branch patterns
+- **Bypass prevention** - Ensures even administrators cannot override failed checks (unless explicitly added to bypass list)
 
 ### Prerequisites:
 
@@ -45,13 +45,18 @@ Now deploy the ruleset using one of these methods:
 
 ## Method 1: GitHub Web UI
 
-### Navigate to Organization Rulesets
-1. Go to your organization: `https://github.com/YOUR-ORG`
-2. Click **Settings** → **Repository** → **Repository rulesets**
-3. Click **New ruleset** → **Import a ruleset**
-4. Upload one of these JSON files:
-   - `npm-security-ruleset.json` (comprehensive protection)
-   - `npm-security-minimal.json` (minimal, just the security check)
+### Creating a Ruleset via Organization Settings
+1. Navigate to your organization's main page on GitHub Enterprise Cloud
+2. Click **Settings** in the organization navigation
+3. In the "Code, planning, and automation" section, click **Repository** → **Repository rulesets**
+4. Click **New ruleset**
+5. Choose between:
+   - **Import a ruleset** - Upload the JSON file directly
+   - **New branch ruleset** - Configure manually
+
+For importing:
+- Select `npm-security-minimal.json` for basic protection
+- Select `npm-security-ruleset.json` for comprehensive protection
 
 ## Method 2: GitHub CLI (Recommended)
 
@@ -117,17 +122,23 @@ curl -L \
 ## Understanding the Ruleset
 
 ### Minimal Version (npm-security-minimal.json)
-- **Target**: Default branch only
-- **Enforcement**: Active immediately
-- **Required check**: `npm-security` status must pass
-- **No bypass**: Nobody can skip this check
+- **Target**: Default branch
+- **Enforcement mode**: Active (immediate enforcement)
+- **Required status checks**: `npm-security` must pass
+- **Bypass list**: Empty (no bypasses allowed)
 
 ### Comprehensive Version (npm-security-ruleset.json)
-- **Target**: All branches
-- **Enforcement**: Active immediately
-- **Multiple checks**: NPM security + general security scan
-- **Pull request rules**: Requires approval and review
-- **Bypass**: No bypass allowed
+- **Target**: All branches (`~ALL` pattern)
+- **Enforcement mode**: Active (immediate enforcement)
+- **Required status checks**: Multiple security checks
+- **Additional rules**: Pull request approvals required
+- **Bypass list**: Empty (administrators cannot override)
+
+### Enforcement Modes Explained
+
+- **Active**: Rules are enforced immediately, blocking non-compliant actions
+- **Evaluate**: Rules are tested but not enforced (logs violations for review)
+- **Disabled**: Ruleset is temporarily inactive
 
 ## Known Malicious Hashes Being Blocked
 

@@ -1,0 +1,67 @@
+name: Test NPM Security Check
+on:
+  push:
+    branches: ['test-malicious-file']
+  pull_request:
+    branches: ['main', 'master']
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  test-npm-security:
+    name: Test NPM Security Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for test malicious file
+        id: security-check
+        run: |
+          echo "Testing npm security check..."
+
+          # Original malicious hashes
+          MALICIOUS_HASHES=(
+            "46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09"
+            "b74caeaa75e077c99f7d44f46daaf9796a3be43ecf24f2a1fd381844669da777"
+            "dc67467a39b70d1cd4c1f7f7a459b35058163592f4a9e8fb4dffcbba98ef210c"
+            "4b2399646573bb737c4969563303d8ee2e9ddbd1b271f1ca9e35ea78062538db"
+          )
+
+          # Add our test hash for demonstration
+          TEST_HASH="7c1f283159dd9c124be8d74f199d8f66bee5b580d247efcff49620058d406906"
+
+          FOUND=false
+
+          # Check all JS files
+          for file in $(find . -type f \( -name "*.js" -o -name "*.mjs" -o -name "*.cjs" \) 2>/dev/null); do
+            if [ -f "$file" ]; then
+              HASH=$(sha256sum "$file" | cut -d" " -f1)
+
+              # Check against known malicious hashes
+              for KNOWN in "${MALICIOUS_HASHES[@]}"; do
+                if [ "$HASH" = "$KNOWN" ]; then
+                  echo "::error::CRITICAL: Malicious file detected: $file"
+                  echo "SHA256: $HASH"
+                  FOUND=true
+                fi
+              done
+
+              # Check against test hash (for demonstration)
+              if [ "$HASH" = "$TEST_HASH" ]; then
+                echo "::warning::TEST: Test malicious file detected: $file"
+                echo "This is a test file to demonstrate the blocking mechanism"
+                echo "SHA256: $HASH"
+                # For testing, we'll treat this as a security failure
+                FOUND=true
+              fi
+            fi
+          done
+
+          if [ "$FOUND" = true ]; then
+            echo "::error::Security check FAILED - Malicious or test files detected"
+            exit 1
+          else
+            echo "Security check PASSED - No malicious files detected"
+          fi

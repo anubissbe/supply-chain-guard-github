@@ -16,13 +16,11 @@
       "parameters": {
         "required_status_checks": [
           {
-            "context": "npm-security",
-            "integration_id": null
+            "context": "npm-security"
           }
         ],
         "strict_required_status_checks_policy": false
       }
     }
-  ],
-  "bypass_actors": []
+  ]
 }

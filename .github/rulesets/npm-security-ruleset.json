@@ -9,13 +9,6 @@
         "~ALL"
       ],
       "exclude": []
-    },
-    "repository_name": {
-      "include": [
-        "*"
-      ],
-      "exclude": [],
-      "protected": false
     }
   },
   "rules": [
@@ -24,12 +17,10 @@
       "parameters": {
         "required_status_checks": [
           {
-            "context": "NPM Security Check",
-            "integration_id": null
+            "context": "NPM Security Check"
           },
           {
-            "context": "security-scan",
-            "integration_id": null
+            "context": "security-scan"
           }
         ],
         "strict_required_status_checks_policy": true
@@ -46,18 +37,6 @@
       }
     },
     {
-      "type": "required_workflows",
-      "parameters": {
-        "required_workflows": [
-          {
-            "path": ".github/workflows/emergency-npm-hash-check.yml",
-            "ref": "main",
-            "repository_id": null
-          }
-        ]
-      }
-    },
-    {
       "type": "creation"
     },
     {
@@ -67,12 +46,5 @@
       }
     }
   ],
-  "bypass_actors": [
-    {
-      "actor_id": null,
-      "actor_type": "RepositoryRole",
-      "bypass_mode": "pull_request",
-      "repository_role_database_id": 5
-    }
-  ]
+  "bypass_actors": []
 }

@@ -1,0 +1,174 @@
+name: Emergency NPM Attack Detection
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  hash-check:
+    name: Check for Malicious NPM Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for known malicious file hashes
+        id: hash-check
+        run: |
+          echo "🔍 Scanning for known malicious npm package hashes..."
+
+          # Known malicious hashes from the npm supply chain attack
+          MALICIOUS_HASHES=(
+            "46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09"
+            "b74caeaa75e077c99f7d44f46daaf9796a3be43ecf24f2a1fd381844669da777"
+            "dc67467a39b70d1cd4c1f7f7a459b35058163592f4a9e8fb4dffcbba98ef210c"
+            "4b2399646573bb737c4969563303d8ee2e9ddbd1b271f1ca9e35ea78062538db"
+          )
+
+          FOUND_MALICIOUS=false
+          MALICIOUS_FILES=""
+
+          # Find all JavaScript files
+          while IFS= read -r -d '' file; do
+            if [ -f "$file" ]; then
+              FILE_HASH=$(sha256sum "$file" | cut -d' ' -f1)
+
+              for KNOWN_HASH in "${MALICIOUS_HASHES[@]}"; do
+                if [ "$FILE_HASH" = "$KNOWN_HASH" ]; then
+                  echo "❌ CRITICAL: Found malicious file!"
+                  echo "   File: $file"
+                  echo "   Hash: $FILE_HASH"
+                  FOUND_MALICIOUS=true
+                  MALICIOUS_FILES="$MALICIOUS_FILES$file (SHA256: $FILE_HASH)\n"
+                fi
+              done
+            fi
+          done < <(find . -type f \( -name "*.js" -o -name "*.mjs" -o -name "*.cjs" \) -print0)
+
+          if [ "$FOUND_MALICIOUS" = true ]; then
+            echo "::error::SECURITY ALERT: Known malicious npm package files detected!"
+            echo "malicious_found=true" >> $GITHUB_OUTPUT
+            echo "malicious_files<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$MALICIOUS_FILES" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "✅ No known malicious files detected"
+            echo "malicious_found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check bundle.js specifically
+        run: |
+          echo "🔍 Checking specifically for bundle.js files..."
+
+          # Find all bundle.js files
+          BUNDLE_FILES=$(find . -type f -name "bundle.js" 2>/dev/null || true)
+
+          if [ -n "$BUNDLE_FILES" ]; then
+            echo "⚠️ Found bundle.js files - verifying they are legitimate:"
+            while IFS= read -r file; do
+              if [ -f "$file" ]; then
+                FILE_HASH=$(sha256sum "$file" | cut -d' ' -f1)
+                echo "  File: $file"
+                echo "  Hash: $FILE_HASH"
+
+                # Check if it's in package.json build output
+                if grep -q "bundle.js" package.json 2>/dev/null; then
+                  echo "  ✓ Appears to be legitimate build output"
+                else
+                  echo "  ⚠️ Not referenced in package.json - requires review"
+                fi
+              fi
+            done <<< "$BUNDLE_FILES"
+          fi
+
+      - name: Scan node_modules for compromise
+        if: hashFiles('package-lock.json') != ''
+        run: |
+          echo "🔍 Scanning node_modules for suspicious patterns..."
+
+          if [ -d "node_modules" ]; then
+            # Look for suspicious patterns in node_modules
+            SUSPICIOUS_PATTERNS=(
+              "process.env.*ssh"
+              "process.env.*private"
+              "child_process.*exec.*curl"
+              "child_process.*exec.*wget"
+              "fs.*writeFileSync.*ssh"
+              "fs.*writeFileSync.*private"
+            )
+
+            for pattern in "${SUSPICIOUS_PATTERNS[@]}"; do
+              echo "Checking for pattern: $pattern"
+              if grep -r -i "$pattern" node_modules --include="*.js" --include="*.mjs" 2>/dev/null | head -5; then
+                echo "⚠️ Found suspicious pattern - manual review recommended"
+              fi
+            done
+          fi
+
+      - name: Create security report
+        if: always()
+        run: |
+          cat > security-scan-report.md << 'EOF'
+          # NPM Supply Chain Attack Scan Report
+
+          **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Repository**: ${{ github.repository }}
+          **Branch**: ${{ github.ref_name }}
+          **Commit**: ${{ github.sha }}
+
+          ## Scan Results
+
+          ### Known Malicious Hash Check
+          ${{ steps.hash-check.outputs.malicious_found == 'true' && '❌ **CRITICAL: Malicious files detected!**' || '✅ **No known malicious files found**' }}
+
+          ${{ steps.hash-check.outputs.malicious_files }}
+
+          ### Recommendations
+
+          1. If malicious files were detected:
+             - **DO NOT MERGE** this code
+             - Immediately remove the infected packages
+             - Audit all recent npm installations
+             - Check for unauthorized commits
+             - Review CI/CD logs for suspicious activity
+
+          2. For all repositories:
+             - Enable Harden-Runner for runtime protection
+             - Use `npm install --ignore-scripts` to prevent lifecycle script execution
+             - Pin all dependencies with exact versions
+             - Regularly update and audit dependencies
+
+          ### Known IOCs (Indicators of Compromise)
+
+          The following SHA256 hashes are known to be associated with the attack:
+          - `46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09`
+          - `b74caeaa75e077c99f7d44f46daaf9796a3be43ecf24f2a1fd381844669da777`
+          - `dc67467a39b70d1cd4c1f7f7a459b35058163592f4a9e8fb4dffcbba98ef210c`
+          - `4b2399646573bb737c4969563303d8ee2e9ddbd1b271f1ca9e35ea78062538db`
+
+          EOF
+
+      - name: Upload security report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: npm-security-scan-${{ github.run_number }}
+          path: security-scan-report.md
+          retention-days: 30
+
+      - name: Set status check
+        if: always()
+        run: |
+          if [ "${{ steps.hash-check.outputs.malicious_found }}" = "true" ]; then
+            echo "::error::Security check failed - malicious files detected"
+            exit 1
+          else
+            echo "::notice::Security check passed - no known threats detected"
+          fi

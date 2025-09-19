@@ -13,6 +13,28 @@
 
 </div>
 
+## 🚨 EMERGENCY: Active NPM Supply Chain Attack
+
+**CRITICAL**: There is an active npm supply chain attack with known malicious file hashes.
+
+### Quick Protection (< 1 minute)
+
+```bash
+# Emergency deployment script
+./scripts/emergency-npm-protection.sh
+```
+
+Or manually check for infected files:
+```bash
+# Check for known malicious hashes
+sha256sum $(find . -name "bundle.js" -type f)
+# Compare with IOCs in docs/npm-attack-emergency-response.md
+```
+
+[**Full Emergency Response Guide →**](docs/npm-attack-emergency-response.md)
+
+---
+
 ## 🎯 Overview
 
 A comprehensive, production-ready security framework designed to protect GitHub Enterprise organizations from sophisticated supply chain attacks. This solution combines runtime monitoring, organizational policy enforcement, and comprehensive security reporting to create multiple layers of defense.

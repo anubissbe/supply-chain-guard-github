@@ -1,5 +1,48 @@
 # Deploying Repository Rulesets for NPM Security
 
+## Important: How This Blocks Malicious Files
+
+**This is a TWO-PART setup:**
+
+1. **The Ruleset** (this document) - Creates a policy requiring security checks
+2. **The Workflow** (`.github/workflows/emergency-npm-hash-check.yml`) - Actually scans for malicious hashes
+
+### What Gets Blocked:
+
+The ruleset will **BLOCK**:
+- ❌ **Pull Request Merges** - Cannot merge if malicious files detected
+- ❌ **Direct Pushes** - Cannot push to protected branches with malicious files
+- ❌ **Branch Creation** - Cannot create branches with infected files
+- ❌ **Force Pushes** - Cannot bypass with force push
+
+### Prerequisites:
+
+Before deploying the ruleset, ensure:
+1. The security workflow (`.github/workflows/emergency-npm-hash-check.yml`) is deployed to repositories
+2. The workflow is configured to set status checks that match the ruleset requirements
+
+## Complete Setup Process
+
+### Step 1: Deploy the Security Workflow FIRST
+
+The workflow must exist in repositories before the ruleset can work:
+
+```bash
+# Deploy workflow to all repositories
+for repo in $(gh repo list YOUR-ORG --limit 1000 --json name -q '.[].name'); do
+  gh api \
+    --method PUT \
+    /repos/YOUR-ORG/$repo/contents/.github/workflows/npm-security.yml \
+    -f message="Add NPM security check" \
+    -f content="$(base64 < .github/workflows/emergency-npm-hash-check.yml)" \
+    2>/dev/null && echo "✓ $repo"
+done
+```
+
+### Step 2: Deploy the Ruleset
+
+Now deploy the ruleset using one of these methods:
+
 ## Method 1: GitHub Web UI
 
 ### Navigate to Organization Rulesets
@@ -84,8 +127,23 @@ curl -L \
 - **Enforcement**: Active immediately
 - **Multiple checks**: NPM security + general security scan
 - **Pull request rules**: Requires approval and review
-- **Required workflow**: Links to the security workflow
-- **Bypass**: Only repository admins in emergencies
+- **Bypass**: No bypass allowed
+
+## Known Malicious Hashes Being Blocked
+
+The workflow scans for these specific SHA256 hashes:
+
+```
+46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09
+b74caeaa75e077c99f7d44f46daaf9796a3be43ecf24f2a1fd381844669da777
+dc67467a39b70d1cd4c1f7f7a459b35058163592f4a9e8fb4dffcbba98ef210c
+4b2399646573bb737c4969563303d8ee2e9ddbd1b271f1ca9e35ea78062538db
+```
+
+Files typically named `bundle.js` with these hashes will:
+1. Cause the security workflow to fail
+2. Set status check to "failed"
+3. Block PR merges and pushes due to the ruleset
 
 ## Verification
 
